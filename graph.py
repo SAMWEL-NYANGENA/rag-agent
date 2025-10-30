@@ -60,7 +60,7 @@ def ingest_node(state: RAGState) -> RAGState:
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = text_splitter.split_documents(docs)
 
-    PineconeVectorStore.from_documents(
+    Pinecone.from_documents(
         documents=splits, embedding=embeddings, index_name=index_name
     )
 
