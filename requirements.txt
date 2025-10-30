@@ -1,10 +1,22 @@
 streamlit
+fastapi
+uvicorn
 python-dotenv
+requests
+
+# LangChain ecosystem
 langchain
-langgraph
-langchain-openai
-langchain-pinecone
-pinecone-client
+langchain-core
 langchain-community
+langchain-openai
+langgraph
+
+# Pinecone + vector search
+pinecone-client
+
+# PDF handling
 pypdf
+
+# Misc
 typing-extensions
+tiktoken
