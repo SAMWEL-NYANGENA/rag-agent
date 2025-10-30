@@ -1,23 +1,28 @@
-streamlit
 fastapi
 uvicorn
-python-dotenv
-requests
-
-# LangChain ecosystem
 langchain
 langchain-core
 langchain-community
 langchain-openai
 langchain-text-splitters
 langgraph
-
-# Pinecone + vector search
-pinecone-client
-
-# PDF handling
-pypdf
-
-# Misc
-typing-extensions
+langgraph-checkpoint
+langgraph-prebuilt
+langgraph-sdk
+pinecone
+pinecone-plugin-interface
+pinecone-plugin-assistant
+openai
+python-dotenv
+httpx
+requests
+aiohttp
+pydantic
+pydantic-settings
 tiktoken
+tenacity
+attrs
+dataclasses-json
+orjson
+typing-extensions
+streamlit
