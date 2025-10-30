@@ -9,6 +9,7 @@ langgraph
 langgraph-checkpoint
 langgraph-prebuilt
 langgraph-sdk
+langchain-pinecone
 pinecone
 pinecone-plugin-interface
 pinecone-plugin-assistant
