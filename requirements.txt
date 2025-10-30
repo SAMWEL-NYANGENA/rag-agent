@@ -27,3 +27,4 @@ dataclasses-json
 orjson
 typing-extensions
 streamlit
+pypdf
