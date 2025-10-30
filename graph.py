@@ -69,7 +69,7 @@ def ingest_node(state: RAGState) -> RAGState:
 
 def retrieve_node(state: RAGState) -> RAGState:
     """Retrieve relevant chunks based on query."""
-    vectorstore = PineconeVectorStore.from_existing_index(
+    vectorstore = Pinecone.from_existing_index(
         index_name=index_name, embedding=embeddings
     )
     docs = vectorstore.similarity_search(state["query"], k=3)
