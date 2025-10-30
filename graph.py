@@ -2,7 +2,7 @@ import os
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitter import RecursiveCharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone as PC, ServerlessSpec
 from langgraph.graph import StateGraph, START, END
