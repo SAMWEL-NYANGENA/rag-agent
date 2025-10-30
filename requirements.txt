@@ -9,6 +9,7 @@ langchain
 langchain-core
 langchain-community
 langchain-openai
+langchain-text-splitters
 langgraph
 
 # Pinecone + vector search
