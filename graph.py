@@ -54,10 +54,7 @@ def load_document(file_path: str):
         return Docx2txtLoader(file_path).load()
     else:
         return []
-
-
 def ingest_node(state: RAGState) -> RAGState:
-    """Load and embed multiple documents if provided, skipping already indexed ones."""
     if not state.get("uploaded_file_path"):
         return state
 
@@ -75,23 +72,24 @@ def ingest_node(state: RAGState) -> RAGState:
     for path in file_paths:
         file_id = os.path.basename(path)
 
-        #  Check if doc already exists in Pinecone (using metadata filter)
+        # Properly check for existing documents by counting matches
         try:
-            existing = index.query(
+            res = index.query(
                 vector=[0.0] * 1536,
-                top_k=1,
                 filter={"source": {"$eq": file_id}},
+                top_k=1,
+                include_metadata=True,
             )
-            if existing and existing.get("matches"):
-                print(f"Skipping already indexed doc: {file_id}")
+            # Skip if there are any matches
+            if res and len(res.get("matches", [])) > 0:
+                print(f" Skipping already indexed doc: {file_id}")
                 continue
         except Exception as e:
             print(f"Error checking index for {file_id}: {e}")
 
-        # Load and collect only new docs
         docs = load_document(path)
         for d in docs:
-            d.metadata["source"] = file_id  # attach filename as metadata
+            d.metadata["source"] = file_id
         all_docs.extend(docs)
         new_files.append(file_id)
 
@@ -104,11 +102,8 @@ def ingest_node(state: RAGState) -> RAGState:
     Pinecone.from_documents(documents=splits, embedding=embeddings, index_name=index_name)
     total_chunks = len(splits)
 
-    print(f"Ingested {len(new_files)} new file(s), {total_chunks} chunks total.")
-
+    print(f" Ingested {len(new_files)} new file(s), {total_chunks} chunks total.")
     return {**state, "pdf_uploaded": True, "chunks_count": total_chunks}
-
-
 
 def retrieve_node(state: RAGState) -> RAGState:
     vectorstore = Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
