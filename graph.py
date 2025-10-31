@@ -57,14 +57,43 @@ def load_document(file_path: str):
 
 
 def ingest_node(state: RAGState) -> RAGState:
-    """Load and embed multiple documents if provided."""
+    """Load and embed multiple documents if provided, skipping already indexed ones."""
     if not state.get("uploaded_file_path"):
         return state
 
+    file_paths = state["uploaded_file_path"]
+    if not isinstance(file_paths, list):
+        file_paths = [file_paths]
+
+    pc_client = PC(api_key=PINECONE_API_KEY)
+    index = pc_client.Index(index_name)
+
     all_docs = []
-    for path in state["uploaded_file_path"]:
+    new_files = []
+    total_chunks = 0
+
+    for path in file_paths:
+        file_id = os.path.basename(path)
+
+        #  Check if doc already exists in Pinecone (using metadata filter)
+        try:
+            existing = index.query(
+                vector=[0.0] * 1536,
+                top_k=1,
+                filter={"source": {"$eq": file_id}},
+            )
+            if existing and existing.get("matches"):
+                print(f"Skipping already indexed doc: {file_id}")
+                continue
+        except Exception as e:
+            print(f"Error checking index for {file_id}: {e}")
+
+        # Load and collect only new docs
         docs = load_document(path)
+        for d in docs:
+            d.metadata["source"] = file_id  # attach filename as metadata
         all_docs.extend(docs)
+        new_files.append(file_id)
 
     if not all_docs:
         return {**state, "pdf_uploaded": True, "chunks_count": 0}
@@ -73,8 +102,12 @@ def ingest_node(state: RAGState) -> RAGState:
     splits = text_splitter.split_documents(all_docs)
 
     Pinecone.from_documents(documents=splits, embedding=embeddings, index_name=index_name)
+    total_chunks = len(splits)
 
-    return {**state, "pdf_uploaded": True, "chunks_count": len(splits)}
+    print(f"Ingested {len(new_files)} new file(s), {total_chunks} chunks total.")
+
+    return {**state, "pdf_uploaded": True, "chunks_count": total_chunks}
+
 
 
 def retrieve_node(state: RAGState) -> RAGState:
