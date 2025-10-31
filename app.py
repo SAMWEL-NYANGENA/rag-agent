@@ -12,11 +12,32 @@ st.set_page_config(page_title="RAG Chat - by Samwel", layout="wide")
 # --- Custom CSS for Chat UI ---
 st.markdown("""
     <style>
-    .user-msg { background-color: #DCF8C6; padding: 10px; border-radius: 10px; margin: 5px 0; }
-    .bot-msg { background-color: #E6E6E6; padding: 10px; border-radius: 10px; margin: 5px 0; }
-    .byline { font-size: 0.8em; color: gray; text-align: center; margin-top: 20px; }
+    body { background-color: #F5F7FA; }
+    .user-msg { 
+        background-color: #DFF0D8; 
+        padding: 10px; 
+        border-radius: 10px; 
+        margin: 6px 0; 
+        color: #1B5E20;
+    }
+    .bot-msg { 
+        background-color: #E3E7EC; 
+        padding: 10px; 
+        border-radius: 10px; 
+        margin: 6px 0; 
+        color: #212121;
+    }
+    .byline { 
+        font-size: 0.8em; 
+        color: #777; 
+        text-align: center; 
+        margin-top: 25px; 
+        border-top: 1px solid #DDD;
+        padding-top: 8px;
+    }
     </style>
 """, unsafe_allow_html=True)
+
 
 st.title(" Multi-Doc RAG Chat")
 st.caption("A LangGraph + Streamlit Retrieval-Augmented Generation App — *by Samwel* ")
