@@ -143,7 +143,12 @@ if query:
                 "answer": "",
             }
 
-            result = rag_graph.invoke(state, config={"run_from": "retrieve", "run_to": "generate"})
+             #   Prevent re-ingestion if docs already processed
+            run_config = {"run_from": "retrieve", "run_to": "generate"}
+            if not st.session_state.docs or not st.session_state.chunks:
+                run_config = {"run_from": "ingest", "run_to": "generate"}
+
+            result = rag_graph.invoke(state, config=run_config)
 
             # Persist updated memory
             st.session_state.memory = result["memory"]
