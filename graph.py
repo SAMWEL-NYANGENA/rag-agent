@@ -1,13 +1,12 @@
 import os
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_pinecone.vectorstores import Pinecone
 from pinecone import Pinecone as PC, ServerlessSpec
 from langgraph.graph import StateGraph, START, END
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
@@ -24,21 +23,19 @@ llm = ChatOpenAI(
 
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
-
 pc = PC(api_key=PINECONE_API_KEY)
 index_name = "rag-agent-index"
 
 if index_name not in [i["name"] for i in pc.list_indexes()]:
     pc.create_index(
         name=index_name,
-        dimension=1536,  # for text-embedding-3-small
+        dimension=1536,
         metric="cosine",
         spec=ServerlessSpec(cloud="aws", region="us-east-1")
     )
 
-#
 class RAGState(TypedDict):
-    uploaded_file_path: str
+    uploaded_file_path: list[str]
     pdf_uploaded: bool
     chunks_count: int
     query: str
@@ -47,37 +44,46 @@ class RAGState(TypedDict):
     answer: str
 
 
+def load_document(file_path: str):
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".pdf":
+        return PyPDFLoader(file_path).load()
+    elif ext == ".txt":
+        return TextLoader(file_path).load()
+    elif ext == ".docx":
+        return Docx2txtLoader(file_path).load()
+    else:
+        return []
+
 
 def ingest_node(state: RAGState) -> RAGState:
-    """Load and embed PDF if not already processed."""
-    if state.get("pdf_uploaded"):
+    """Load and embed multiple documents if provided."""
+    if not state.get("uploaded_file_path"):
         return state
 
-    pdf_path = state["uploaded_file_path"]
-    loader = PyPDFLoader(pdf_path)
-    docs = loader.load()
+    all_docs = []
+    for path in state["uploaded_file_path"]:
+        docs = load_document(path)
+        all_docs.extend(docs)
+
+    if not all_docs:
+        return {**state, "pdf_uploaded": True, "chunks_count": 0}
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(docs)
+    splits = text_splitter.split_documents(all_docs)
 
-    Pinecone.from_documents(
-        documents=splits, embedding=embeddings, index_name=index_name
-    )
+    Pinecone.from_documents(documents=splits, embedding=embeddings, index_name=index_name)
 
     return {**state, "pdf_uploaded": True, "chunks_count": len(splits)}
 
 
 def retrieve_node(state: RAGState) -> RAGState:
-    """Retrieve relevant chunks based on query."""
-    vectorstore = Pinecone.from_existing_index(
-        index_name=index_name, embedding=embeddings
-    )
+    vectorstore = Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
     docs = vectorstore.similarity_search(state["query"], k=3)
     return {**state, "retrieved_docs": [d.page_content for d in docs]}
 
 
 def memory_node(state: RAGState) -> RAGState:
-    """Keep track of chat memory across queries."""
     prev_memory = state.get("memory", [])
     context_snippet = "\n\n".join(state.get("retrieved_docs", []))
     new_memory = prev_memory + [f"Q: {state['query']}\nA: {context_snippet}"]
@@ -85,7 +91,6 @@ def memory_node(state: RAGState) -> RAGState:
 
 
 def generate_node(state: RAGState) -> RAGState:
-    """Generate answer using context + memory."""
     memory_context = "\n\n".join(state.get("memory", []))
     current_context = "\n\n".join(state["retrieved_docs"])
 
@@ -107,7 +112,6 @@ Answer:
     return {**state, "answer": response.content}
 
 
-# graph
 graph = StateGraph(RAGState)
 graph.add_node("ingest", ingest_node)
 graph.add_node("retrieve", retrieve_node)
