@@ -1,4 +1,5 @@
 import os
+import hashlib
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
@@ -54,7 +55,10 @@ def load_document(file_path: str):
         return Docx2txtLoader(file_path).load()
     else:
         return []
+
+
 def ingest_node(state: RAGState) -> RAGState:
+    """Load and embed multiple documents only once per file."""
     if not state.get("uploaded_file_path"):
         return state
 
@@ -65,44 +69,63 @@ def ingest_node(state: RAGState) -> RAGState:
     pc_client = PC(api_key=PINECONE_API_KEY)
     index = pc_client.Index(index_name)
 
-    all_docs = []
-    new_files = []
+    all_splits = []
+    ingested_files = []
     total_chunks = 0
 
     for path in file_paths:
         file_id = os.path.basename(path)
+        # Create a unique hash of the file’s contents
+        with open(path, "rb") as f:
+            file_hash = hashlib.md5(f.read()).hexdigest()
 
-        # Properly check for existing documents by counting matches
+        # Check if this hash already exists in Pinecone
         try:
             res = index.query(
                 vector=[0.0] * 1536,
-                filter={"source": {"$eq": file_id}},
                 top_k=1,
+                filter={"file_hash": {"$eq": file_hash}},
                 include_metadata=True,
             )
-            # Skip if there are any matches
             if res and len(res.get("matches", [])) > 0:
-                print(f" Skipping already indexed doc: {file_id}")
+                print(f" Skipping already indexed file: {file_id}")
                 continue
         except Exception as e:
             print(f"Error checking index for {file_id}: {e}")
 
+        # Load new documents
         docs = load_document(path)
-        for d in docs:
-            d.metadata["source"] = file_id
-        all_docs.extend(docs)
-        new_files.append(file_id)
+        for doc in docs:
+            doc.metadata["source"] = file_id
+            doc.metadata["file_hash"] = file_hash
 
-    if not all_docs:
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        splits = text_splitter.split_documents(docs)
+
+        # Assign unique IDs per chunk
+        for i, split in enumerate(splits):
+            split.metadata["chunk_id"] = f"{file_hash}_{i}"
+
+        all_splits.extend(splits)
+        ingested_files.append(file_id)
+        total_chunks += len(splits)
+
+    if not all_splits:
         return {**state, "pdf_uploaded": True, "chunks_count": 0}
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(all_docs)
+    # Insert with IDs to prevent duplicates
+    vectorstore = PineconeVectorStore.from_existing_index(
+        index_name=index_name, embedding=embeddings
+    )
+    vectorstore.add_documents(
+        documents=all_splits,
+        ids=[split.metadata["chunk_id"] for split in all_splits],
+    )
 
-    Pinecone.from_documents(documents=splits, embedding=embeddings, index_name=index_name)
-    total_chunks = len(splits)
+    print(f" Ingested {len(ingested_files)} new file(s), {total_chunks} chunks total.")
+    stats = index.describe_index_stats()
+    print(f" Total vectors now: {stats['total_vector_count']}")
 
-    print(f" Ingested {len(new_files)} new file(s), {total_chunks} chunks total.")
     return {**state, "pdf_uploaded": True, "chunks_count": total_chunks}
 
 def retrieve_node(state: RAGState) -> RAGState:
