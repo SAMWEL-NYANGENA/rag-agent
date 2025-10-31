@@ -114,7 +114,7 @@ def ingest_node(state: RAGState) -> RAGState:
         return {**state, "pdf_uploaded": True, "chunks_count": 0}
 
     # Insert with IDs to prevent duplicates
-    vectorstore = PineconeVectorStore.from_existing_index(
+    vectorstore = Pinecone.from_existing_index(
         index_name=index_name, embedding=embeddings
     )
     vectorstore.add_documents(
